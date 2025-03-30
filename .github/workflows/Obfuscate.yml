@@ -1,4 +1,4 @@
-name: Optimized BPB Build (Stage 2)
+name: Ultra-Optimized BPB Build 
  
 on:
   push:
@@ -13,60 +13,67 @@ jobs:
   prepare:
     runs-on: ubuntu-latest 
     outputs:
-      node-cache: ${{{{ steps.node-cache.outputs.cache-hit  }}}}
+      cache-key: ${{ steps.cache-npm.outputs.cache-key  }}
     steps:
       - uses: actions/checkout@v4 
       
-      - name: Node.js 环境预加载 [5]()
+      - name: Preload Node.js  with JIT 
         uses: actions/setup-node@v4 
         with:
           node-version: "20.x"
           cache: "npm"
-          cache-dependency-path: "**/package-lock.json" 
+          flags: "--max-old-space-size=2048"
  
-      - name: 二进制工具预缓存 [2]()
+      - name: Cache global packages [1]()
+        id: cache-npm 
         uses: actions/cache@v4 
-        id: binary-cache 
         with:
           path: |
             ~/.npm 
-            /usr/local/bin/javascript-obfuscator 
-          key: ${{{{ runner.os  }}}}-bin-${{{{ hashFiles('**/package-lock.json')  }}}}
+            /usr/local/lib/node_modules 
+          key: ${{ runner.os  }}-npm-${{ hashFiles('**/package-lock.json')  }}
  
   build:
     needs: prepare 
     runs-on: ubuntu-latest 
-    env:
-      NODE_OPTIONS: "--max-old-space-size=4096 --optimize-for-size"
+    timeout-minutes: 5 
     steps:
-      - uses: actions/checkout@v4 
+      - name: Parallel tasks 
+        uses: robinraju/release-downloader@v1.7 
         with:
-          ref: ${{{{ github.ref  }}}}
+          repository: "bia-pain-bache/BPB-Worker-Panel"
+          fileName: "unobfuscated-worker.js" 
+          out-file-path: "origin.js" 
  
-      - name: 并行资源加载 [6]()
+      - name: Smart Obfuscation ()
         run: |
-          (wget -qO origin.js  https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/refs/heads/main/build/unobfuscated-worker.js)  &
-          (npm install -g pnpm && pnpm install -g javascript-obfuscator) &
-          wait 
+          javascript-obfuscator origin.js  --output _worker.js  \
+          --compact true \
+          --control-flow-flattening true \
+          --dead-code-injection-threshold 0.5 \
+          --identifier-names-generator hexadecimal \
+          --string-array-encoding 'rc4' \
+          --transform-object-keys true \
+          options:
+            cpuQuota: 0.8  # 限制CPU使用率 
  
-      - name: 增量混淆处理 [7]()
-        run: |
-          if [ origin.js  -nt _worker.js  ]; then 
-            javascript-obfuscator origin.js  --output _worker.js  \
-            --compact true \
-            --control-flow-flattening-threshold 0.5 \
-            --dead-code-injection-threshold 0.3 \
-            --identifier-names-generator hexadecimal \
-            --string-array-encoding 'rc4' \
-            --parallel true 
-          else 
-            echo "No changes detected, skipping obfuscation"
-          fi 
- 
-      - name: 智能提交 [3]()
+      - name: Conditional Commit ()
         uses: stefanzweifel/git-auto-commit-action@v5 
         with:
           branch: main 
           commit_message: ':zap: Optimized build'
-          commit_author: 'github-actions[bot]'
+          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>' 
           push_options: '--force'
+          skip_dirty_check: true 
+        env:
+          GIT_COMMITTER_NAME: github-actions 
+          GIT_COMMITTER_EMAIL: actions@github.com  
+ 
+  post-build:
+    needs: build 
+    runs-on: ubuntu-latest 
+    steps:
+      - name: Cleanup artifacts ()
+        run: |
+          rm -rf origin.js  
+          npm cache clean --force 
