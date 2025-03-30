@@ -1,57 +1,58 @@
-name: Build Obfuscate BPB Panel
-
+name: Optimized BPB Obfuscate Workflow 
+ 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   schedule:
-        # Runs everyday at 1:00 AM
-        - cron: "0 1 * * *"
-
+    - cron: "0 1 * * *"
+ 
 permissions:
-  contents: write
-
+  contents: write 
+ 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-latest 
+    env:
+      NODE_VERSION: "20"  # 固定 LTS 版本 
     steps:
-      - name: Check out the code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Checkout code 
+        uses: actions/checkout@v4 
+ 
+      - name: Cache Node modules 
+        uses: actions/cache@v3 
         with:
-          node-version: "latest"
-
-      - name: Install dependencies
+          path: ~/.npm 
+          key: ${{ runner.os  }}-node-${{ hashFiles('**/package-lock.json')  }}
+ 
+      - name: Setup Node.js  
+        uses: actions/setup-node@v4 
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+ 
+      - name: Install dependencies 
+        run: npm install -g javascript-obfuscator@4.0.0  # 固定版本 
+ 
+      - name: Download source 
+        run: wget -O origin.js  https://raw.githubusercontent.com/.../unobfuscated-worker.js  
+ 
+      - name: Optimized obfuscation 
         run: |
-          npm install -g javascript-obfuscator
-
-      - name: Clone BPB workjs
-        run: |
-          wget -O origin.js https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/refs/heads/main/build/unobfuscated-worker.js
-
-      - name: Obfuscate BPB worker js
-        run: |
-          javascript-obfuscator origin.js --output _worker.js \
+          javascript-obfuscator origin.js  --output _worker.js  \
           --compact true \
           --control-flow-flattening true \
-          --control-flow-flattening-threshold 1 \
-          --dead-code-injection true \
-          --dead-code-injection-threshold 1 \
+          --control-flow-flattening-threshold 0.5 \  # 降低阈值 
+          --dead-code-injection false \  # 禁用高危选项 
           --identifier-names-generator hexadecimal \
           --rename-globals true \
           --string-array true \
-          --string-array-encoding 'rc4' \
-          --string-array-threshold 1 \
-          --transform-object-keys true \
-          --unicode-escape-sequence true
-
-      - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+          --string-array-encoding 'base64' \  # 替换 rc4 降低复杂度 
+          --string-array-threshold 0.75 \
+          --transform-object-keys false \  # 禁用非必要选项 
+          --unicode-escape-sequence false 
+ 
+      - name: Commit changes 
+        uses: stefanzweifel/git-auto-commit-action@v5 
         with:
-          branch: main
-          commit_message: ':arrow_up: update latest bpb panel'
-          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
-          push_options: '--set-upstream'
+          branch: main 
+          commit_message: ':zap: Optimized BPB obfuscation'
