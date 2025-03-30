@@ -1,57 +1,72 @@
-name: Build Obfuscate BPB Panel
-
+name: Optimized Build Obfuscate BPB Panel 
+ 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   schedule:
-        # Runs everyday at 1:00 AM
-        - cron: "0 1 * * *"
-
+    - cron: "0 1 * * *"
+ 
 permissions:
-  contents: write
-
+  contents: write 
+ 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-
+  prepare:
+    runs-on: ubuntu-latest 
+    outputs:
+      cache-key: ${{ steps.cache-npm.outputs.cache-key  }}
     steps:
-      - name: Check out the code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4 
+      
+      - name: Cache npm global packages 
+        id: cache-npm 
+        uses: actions/cache@v4 
+        with:
+          path: ~/.npm 
+          key: ${{ runner.os  }}-npm-global-${{ hashFiles('**/package-lock.json')  }}
+          restore-keys: |
+            ${{ runner.os  }}-npm-global-
+ 
+  build:
+    needs: prepare 
+    runs-on: ubuntu-latest 
+    steps:
+      - uses: actions/checkout@v4 
+ 
+      - name: Set up Node.js  (Optimized)
+        uses: actions/setup-node@v4 
         with:
           node-version: "latest"
-
-      - name: Install dependencies
+          flags: "--max-old-space-size=4096"
+ 
+      - name: Install dependencies 
         run: |
-          npm install -g javascript-obfuscator
-
-      - name: Clone BPB workjs
+          npm config set registry https://registry.npmmirror.com/ 
+          npm install -g javascript-obfuscator 
+ 
+      - name: Clone BPB workjs (Optimized)
         run: |
-          wget -O origin.js https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/refs/heads/main/build/unobfuscated-worker.js
-
-      - name: Obfuscate BPB worker js
+          if [ ! -f origin.js  ]; then 
+            wget -q -O origin.js  https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/refs/heads/main/build/unobfuscated-worker.js  
+          fi 
+ 
+      - name: Obfuscate BPB worker js (Optimized)
         run: |
-          javascript-obfuscator origin.js --output _worker.js \
+          javascript-obfuscator origin.js  --output _worker.js  \
           --compact true \
           --control-flow-flattening true \
-          --control-flow-flattening-threshold 1 \
+          --control-flow-flattening-threshold 0.7 \
           --dead-code-injection true \
-          --dead-code-injection-threshold 1 \
+          --dead-code-injection-threshold 0.5 \
           --identifier-names-generator hexadecimal \
           --rename-globals true \
           --string-array true \
           --string-array-encoding 'rc4' \
-          --string-array-threshold 1 \
+          --string-array-threshold 0.6 \
           --transform-object-keys true \
-          --unicode-escape-sequence true
-
-      - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v5
+          --unicode-escape-sequence true \
+          --simplify true 
+ 
+      - uses: stefanzweifel/git-auto-commit-action@v5 
         with:
-          branch: main
-          commit_message: ':arrow_up: update latest bpb panel'
-          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
-          push_options: '--set-upstream'
+          branch: main 
+          commit_message: ':zap: Optimized build'
