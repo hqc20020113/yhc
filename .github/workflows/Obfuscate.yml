@@ -1,4 +1,4 @@
-name: Optimized Build Obfuscate BPB Panel 
+name: Optimized BPB Build (Stage 2)
  
 on:
   push:
@@ -13,60 +13,60 @@ jobs:
   prepare:
     runs-on: ubuntu-latest 
     outputs:
-      cache-key: ${{ steps.cache-npm.outputs.cache-key  }}
+      node-cache: ${{{{ steps.node-cache.outputs.cache-hit  }}}}
     steps:
       - uses: actions/checkout@v4 
       
-      - name: Cache npm global packages 
-        id: cache-npm 
-        uses: actions/cache@v4 
+      - name: Node.js 环境预加载 [5]()
+        uses: actions/setup-node@v4 
         with:
-          path: ~/.npm 
-          key: ${{ runner.os  }}-npm-global-${{ hashFiles('**/package-lock.json')  }}
-          restore-keys: |
-            ${{ runner.os  }}-npm-global-
+          node-version: "20.x"
+          cache: "npm"
+          cache-dependency-path: "**/package-lock.json" 
+ 
+      - name: 二进制工具预缓存 [2]()
+        uses: actions/cache@v4 
+        id: binary-cache 
+        with:
+          path: |
+            ~/.npm 
+            /usr/local/bin/javascript-obfuscator 
+          key: ${{{{ runner.os  }}}}-bin-${{{{ hashFiles('**/package-lock.json')  }}}}
  
   build:
     needs: prepare 
     runs-on: ubuntu-latest 
+    env:
+      NODE_OPTIONS: "--max-old-space-size=4096 --optimize-for-size"
     steps:
       - uses: actions/checkout@v4 
- 
-      - name: Set up Node.js  (Optimized)
-        uses: actions/setup-node@v4 
         with:
-          node-version: "latest"
-          flags: "--max-old-space-size=4096"
+          ref: ${{{{ github.ref  }}}}
  
-      - name: Install dependencies 
+      - name: 并行资源加载 [6]()
         run: |
-          npm config set registry https://registry.npmmirror.com/ 
-          npm install -g javascript-obfuscator 
+          (wget -qO origin.js  https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/refs/heads/main/build/unobfuscated-worker.js)  &
+          (npm install -g pnpm && pnpm install -g javascript-obfuscator) &
+          wait 
  
-      - name: Clone BPB workjs (Optimized)
+      - name: 增量混淆处理 [7]()
         run: |
-          if [ ! -f origin.js  ]; then 
-            wget -q -O origin.js  https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/refs/heads/main/build/unobfuscated-worker.js  
+          if [ origin.js  -nt _worker.js  ]; then 
+            javascript-obfuscator origin.js  --output _worker.js  \
+            --compact true \
+            --control-flow-flattening-threshold 0.5 \
+            --dead-code-injection-threshold 0.3 \
+            --identifier-names-generator hexadecimal \
+            --string-array-encoding 'rc4' \
+            --parallel true 
+          else 
+            echo "No changes detected, skipping obfuscation"
           fi 
  
-      - name: Obfuscate BPB worker js (Optimized)
-        run: |
-          javascript-obfuscator origin.js  --output _worker.js  \
-          --compact true \
-          --control-flow-flattening true \
-          --control-flow-flattening-threshold 0.7 \
-          --dead-code-injection true \
-          --dead-code-injection-threshold 0.5 \
-          --identifier-names-generator hexadecimal \
-          --rename-globals true \
-          --string-array true \
-          --string-array-encoding 'rc4' \
-          --string-array-threshold 0.6 \
-          --transform-object-keys true \
-          --unicode-escape-sequence true \
-          --simplify true 
- 
-      - uses: stefanzweifel/git-auto-commit-action@v5 
+      - name: 智能提交 [3]()
+        uses: stefanzweifel/git-auto-commit-action@v5 
         with:
           branch: main 
           commit_message: ':zap: Optimized build'
+          commit_author: 'github-actions[bot]'
+          push_options: '--force'
