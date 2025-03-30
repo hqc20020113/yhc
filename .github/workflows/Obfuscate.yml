@@ -1,79 +1,57 @@
-name: Ultra-Optimized BPB Build 
- 
+name: Build Obfuscate BPB Panel
+
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   schedule:
-    - cron: "0 1 * * *"
- 
+        # Runs everyday at 1:00 AM
+        - cron: "0 1 * * *"
+
 permissions:
-  contents: write 
- 
+  contents: write
+
 jobs:
-  prepare:
-    runs-on: ubuntu-latest 
-    outputs:
-      cache-key: ${{ steps.cache-npm.outputs.cache-key  }}
-    steps:
-      - uses: actions/checkout@v4 
-      
-      - name: Preload Node.js  with JIT 
-        uses: actions/setup-node@v4 
-        with:
-          node-version: "20.x"
-          cache: "npm"
-          flags: "--max-old-space-size=2048"
- 
-      - name: Cache global packages [1]()
-        id: cache-npm 
-        uses: actions/cache@v4 
-        with:
-          path: |
-            ~/.npm 
-            /usr/local/lib/node_modules 
-          key: ${{ runner.os  }}-npm-${{ hashFiles('**/package-lock.json')  }}
- 
   build:
-    needs: prepare 
-    runs-on: ubuntu-latest 
-    timeout-minutes: 5 
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Parallel tasks 
-        uses: robinraju/release-downloader@v1.7 
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          repository: "bia-pain-bache/BPB-Worker-Panel"
-          fileName: "unobfuscated-worker.js" 
-          out-file-path: "origin.js" 
- 
-      - name: Smart Obfuscation ()
+          node-version: "latest"
+
+      - name: Install dependencies
         run: |
-          javascript-obfuscator origin.js  --output _worker.js  \
+          npm install -g javascript-obfuscator
+
+      - name: Clone BPB workjs
+        run: |
+          wget -O origin.js https://raw.githubusercontent.com/bia-pain-bache/BPB-Worker-Panel/refs/heads/main/build/unobfuscated-worker.js
+
+      - name: Obfuscate BPB worker js
+        run: |
+          javascript-obfuscator origin.js --output _worker.js \
           --compact true \
           --control-flow-flattening true \
-          --dead-code-injection-threshold 0.5 \
+          --control-flow-flattening-threshold 1 \
+          --dead-code-injection true \
+          --dead-code-injection-threshold 1 \
           --identifier-names-generator hexadecimal \
+          --rename-globals true \
+          --string-array true \
           --string-array-encoding 'rc4' \
+          --string-array-threshold 1 \
           --transform-object-keys true \
-          options:
-            cpuQuota: 0.8  # 限制CPU使用率 
- 
-      - name: Conditional Commit ()
-        uses: stefanzweifel/git-auto-commit-action@v5 
+          --unicode-escape-sequence true
+
+      - name: Commit changes
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          branch: main 
-          commit_message: ':zap: Optimized build'
-          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>' 
-          push_options: '--force'
-          skip_dirty_check: true 
-        env:
-          GIT_COMMITTER_NAME: github-actions 
-          GIT_COMMITTER_EMAIL: actions@github.com  
- 
-  post-build:
-    needs: build 
-    runs-on: ubuntu-latest 
-    steps:
-      - name: Cleanup artifacts ()
-        run: |
-          rm -rf origin.js  
-          npm cache clean --force 
+          branch: main
+          commit_message: ':arrow_up: update latest bpb panel'
+          commit_author: 'github-actions[bot] <github-actions[bot]@users.noreply.github.com>'
+          push_options: '--set-upstream'
